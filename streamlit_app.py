@@ -5,9 +5,8 @@ from streamlit_folium import st_folium
 import numpy as np
 from haversine import haversine, Unit
 import requests
-import json
 
-st.title("🏨 서울 호텔 + 주변 관광지 시각화 (JSON 안전 처리)")
+st.title("🏨 서울 호텔 + 주변 관광지 시각화")
 
 # 🔑 API Key
 api_key = "f0e46463ccf90abd0defd9c79c8568e922e07a835961b1676cdb2065ecc23494"
@@ -37,7 +36,6 @@ def get_hotels(api_key):
         st.error(f"호텔 API 호출 실패: {e}")
         return pd.DataFrame(columns=['name','lat','lng','price','rating'])
 
-    # 필요한 컬럼 생성
     for col in ['title','mapx','mapy']:
         if col not in df.columns:
             df[col] = None
@@ -62,41 +60,20 @@ selected_hotel = st.selectbox("호텔 선택", hotel_names)
 hotel_info = hotels_df[hotels_df['name']==selected_hotel].iloc[0]
 
 # -------------------
-# 3) 두 JSON 파일 통합 (dict 안전 처리)
+# 3) 두 CSV 파일 통합
 # -------------------
 @st.cache_data(ttl=3600)
-def load_and_merge_tourist(json_file1, json_file2):
+def load_and_merge_tourist(csv_file1, csv_file2):
     dfs = []
-    for json_file, mapping in zip(
-        [json_file1, json_file2],
+    for csv_file, mapping in zip(
+        [csv_file1, csv_file2],
         [
             {'lng':'중심 좌표 X','lat':'중심 좌표 Y','name':'최종 표기명'},
             {'lng':'X 좌표','lat':'Y 좌표','name':'명칭'}
         ]
     ):
         try:
-            with open(json_file, encoding='utf-8') as f:
-                data = json.load(f)
-            # dict 안 리스트 확인
-            if 'DATA' in data:
-                df = pd.DataFrame(data['DATA'])
-            else:
-                # 그냥 dict이면 list 변환 시도
-                if isinstance(data, dict):
-                    # dict 안에 리스트가 있는 키 찾아서 선택
-                    list_found = False
-                    for v in data.values():
-                        if isinstance(v, list):
-                            df = pd.DataFrame(v)
-                            list_found = True
-                            break
-                    if not list_found:
-                        df = pd.DataFrame()
-                elif isinstance(data, list):
-                    df = pd.DataFrame(data)
-                else:
-                    df = pd.DataFrame()
-            # 컬럼명 통일
+            df = pd.read_csv(csv_file)
             for new_col, old_col in mapping.items():
                 if old_col in df.columns:
                     df[new_col] = pd.to_numeric(df[old_col], errors='coerce') if new_col in ['lat','lng'] else df[old_col]
@@ -106,14 +83,14 @@ def load_and_merge_tourist(json_file1, json_file2):
             df = df[['name','lat','lng']]
             dfs.append(df)
         except Exception as e:
-            st.warning(f"{json_file} 처리 중 오류: {e}")
+            st.warning(f"{csv_file} 처리 중 오류: {e}")
             dfs.append(pd.DataFrame(columns=['name','lat','lng']))
     merged_df = pd.concat(dfs, ignore_index=True)
     return merged_df
 
 tourist_df = load_and_merge_tourist(
-    "서울시 관광거리 정보 (한국어)(2015년).json",
-    "서울시 종로구 관광데이터 정보 (한국어).json"
+    "서울시 관광거리 정보 (한국어)(2015년).csv",
+    "서울시 종로구 관광데이터 정보 (한국어).csv"
 )
 
 if tourist_df.empty:
