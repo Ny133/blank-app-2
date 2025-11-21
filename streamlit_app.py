@@ -147,7 +147,7 @@ for idx, row in nearby_tourist_df.iterrows():
         popup=row['name']
     ).add_to(m)
 
-st.subheader(f"{selected_hotel} a map of nearby tourist attractions")
+st.subheader(f"{selected_hotel}  -  a map of nearby tourist attractions")
 st_folium(m, width=700, height=500, returned_objects=[])
 
 # -------------------
