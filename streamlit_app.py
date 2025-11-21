@@ -10,7 +10,7 @@ from urllib.parse import quote
 st.title("🏨 서울 호텔 + 주변 관광지 시각화 (Eng API + CSV)")
 
 # 🔑 API Key
-api_key = "여기에_발급받은_API_Key_붙여넣기"
+api_key = "f0e46463ccf90abd0defd9c79c8568e922e07a835961b1676cdb2065ecc23494"
 api_key_encoded = quote(api_key)  # 안전하게 URL 인코딩
 
 # -------------------
