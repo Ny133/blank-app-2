@@ -16,7 +16,7 @@ api_key = "f0e46463ccf90abd0defd9c79c8568e922e07a835961b1676cdb2065ecc23494"
 # -------------------
 @st.cache_data(ttl=3600)
 def get_hotels(api_key):
-    url = "http://apis.data.go.kr/B551011/EngService2/searchStay2"  # 영문 API
+    url = "https://apis.data.go.kr/B551011/EngService2"  # 영문 API
     params = {
         "ServiceKey": api_key,
         "numOfRows": 50,
