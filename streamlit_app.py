@@ -73,7 +73,7 @@ def load_and_merge_tourist(csv_file1, csv_file2):
         ]
     ):
         try:
-            df = pd.read_csv(csv_file)
+            df = pd.read_csv(csv_file, encoding='cp949')  # <- 여기만 수정
             for new_col, old_col in mapping.items():
                 if old_col in df.columns:
                     df[new_col] = pd.to_numeric(df[old_col], errors='coerce') if new_col in ['lat','lng'] else df[old_col]
@@ -87,6 +87,7 @@ def load_and_merge_tourist(csv_file1, csv_file2):
             dfs.append(pd.DataFrame(columns=['name','lat','lng']))
     merged_df = pd.concat(dfs, ignore_index=True)
     return merged_df
+
 
 tourist_df = load_and_merge_tourist(
     "서울시 관광거리 정보 (한국어)(2015년).csv",
