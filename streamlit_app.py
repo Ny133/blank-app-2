@@ -7,7 +7,7 @@ from haversine import haversine, Unit
 import requests
 import json
 
-st.title("🏨 서울 호텔 + 주변 관광지 시각화 (두 JSON 파일 통합)")
+st.title("🏨 서울 호텔 + 주변 관광지 시각화 (두 JSON 파일 통합, 안전 실행)")
 
 # 🔑 API Key
 api_key = "f0e46463ccf90abd0defd9c79c8568e922e07a835961b1676cdb2065ecc23494"
@@ -28,10 +28,16 @@ def get_hotels(api_key):
         "_type": "json",
         "areaCode": 1  # 서울
     }
-    res = requests.get(url, params=params, timeout=10)
-    data = res.json()
-    items = data['response']['body']['items']['item']
-    df = pd.DataFrame(items)
+    try:
+        res = requests.get(url, params=params, timeout=10)
+        data = res.json()
+        items = data['response']['body']['items']['item']
+        df = pd.DataFrame(items)
+    except Exception as e:
+        st.error(f"호텔 API 호출 실패: {e}")
+        return pd.DataFrame(columns=['name','lat','lng','price','rating'])
+
+    # 필요한 컬럼 생성
     for col in ['title','mapx','mapy']:
         if col not in df.columns:
             df[col] = None
@@ -44,6 +50,9 @@ def get_hotels(api_key):
     return df
 
 hotels_df = get_hotels(api_key)
+if hotels_df.empty:
+    st.warning("호텔 정보를 불러오지 못했습니다. API Key와 네트워크를 확인하세요.")
+    st.stop()
 
 # -------------------
 # 2) 호텔 선택
@@ -53,46 +62,48 @@ selected_hotel = st.selectbox("호텔 선택", hotel_names)
 hotel_info = hotels_df[hotels_df['name']==selected_hotel].iloc[0]
 
 # -------------------
-# 3) 두 JSON 파일 통합
+# 3) 두 JSON 파일 통합 (KeyError 방지)
 # -------------------
 @st.cache_data(ttl=3600)
 def load_and_merge_tourist(json_file1, json_file2):
-    # 첫 번째 파일
-    with open(json_file1, encoding='utf-8') as f:
-        data1 = json.load(f)
-    if 'DATA' in data1:
-        df1 = pd.DataFrame(data1['DATA'])
-    else:
-        df1 = pd.DataFrame(data1)
-    if '중심 좌표 X' in df1.columns and '중심 좌표 Y' in df1.columns and '최종 표기명' in df1.columns:
-        df1['lng'] = pd.to_numeric(df1['중심 좌표 X'], errors='coerce')
-        df1['lat'] = pd.to_numeric(df1['중심 좌표 Y'], errors='coerce')
-        df1['name'] = df1['최종 표기명']
-    df1 = df1.dropna(subset=['lat','lng'])
-    df1 = df1[['name','lat','lng']]
-
-    # 두 번째 파일
-    with open(json_file2, encoding='utf-8') as f:
-        data2 = json.load(f)
-    if 'DATA' in data2:
-        df2 = pd.DataFrame(data2['DATA'])
-    else:
-        df2 = pd.DataFrame(data2)
-    if 'X 좌표' in df2.columns and 'Y 좌표' in df2.columns and '명칭' in df2.columns:
-        df2['lng'] = pd.to_numeric(df2['X 좌표'], errors='coerce')
-        df2['lat'] = pd.to_numeric(df2['Y 좌표'], errors='coerce')
-        df2['name'] = df2['명칭']
-    df2 = df2.dropna(subset=['lat','lng'])
-    df2 = df2[['name','lat','lng']]
-
-    # 결합
-    df = pd.concat([df1, df2], ignore_index=True)
-    return df
+    dfs = []
+    for json_file, mapping in zip(
+        [json_file1, json_file2],
+        [
+            {'lng':'중심 좌표 X','lat':'중심 좌표 Y','name':'최종 표기명'},
+            {'lng':'X 좌표','lat':'Y 좌표','name':'명칭'}
+        ]
+    ):
+        try:
+            with open(json_file, encoding='utf-8') as f:
+                data = json.load(f)
+            if 'DATA' in data:
+                df = pd.DataFrame(data['DATA'])
+            else:
+                df = pd.DataFrame(data)
+            # 컬럼 존재 확인 후 생성
+            for new_col, old_col in mapping.items():
+                if old_col in df.columns:
+                    df[new_col] = pd.to_numeric(df[old_col], errors='coerce') if new_col in ['lat','lng'] else df[old_col]
+                else:
+                    df[new_col] = np.nan
+            df = df.dropna(subset=['lat','lng'])
+            df = df[['name','lat','lng']]
+            dfs.append(df)
+        except Exception as e:
+            st.warning(f"{json_file} 처리 중 오류: {e}")
+            dfs.append(pd.DataFrame(columns=['name','lat','lng']))
+    merged_df = pd.concat(dfs, ignore_index=True)
+    return merged_df
 
 tourist_df = load_and_merge_tourist(
     "서울시 관광거리 정보 (한국어)(2015년).json",
     "서울시 종로구 관광데이터 정보 (한국어).json"
 )
+
+if tourist_df.empty:
+    st.warning("관광지 데이터를 불러오지 못했습니다.")
+    st.stop()
 
 # -------------------
 # 4) 호텔 반경 내 관광지 필터링
